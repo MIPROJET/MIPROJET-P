@@ -284,7 +284,7 @@ function ProjectForm({ userId, onDone }: { userId: string; onDone: () => void })
         {[
           ["has_accounting", "Comptabilité tenue"],
           ["has_bank_account", "Compte bancaire actif"],
-          ["has_business_plan", "Business plan disponible"],
+          ["has_business_plan", "Document de présentation stratégique disponible"],
         ].map(([key, label]) => (
           <label key={key} className="flex items-center gap-2 text-sm">
             <Checkbox
