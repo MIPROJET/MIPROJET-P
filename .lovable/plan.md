@@ -1,55 +1,61 @@
+# Plan de finalisation AgriCapital
 
-La demande contient 8 chantiers majeurs. Je propose de tout livrer en 3 lots cohérents, dans le même fil, pour garder la qualité et te permettre de valider à chaque étape.
+Le périmètre est large — je propose de le découper en 3 lots livrables séquentiellement pour garder la qualité. Validez l'ordre (ou ajustez) et je lance le lot 1.
 
-## Lot 1 — Plans, accès, onboarding mobile, charte visuelle
+## Lot 1 — Identité visuelle & page publique `/projets/agricapital`
 
-1. **Helper de plan** (`src/lib/plan.ts`)
-   - `getUserPlan(userId)` → `'free' | 'growth' | 'partner'` via `mp_user_plans` (nouvelle table) ou défaut `free`.
-   - `PLAN_FEATURES` : map des capacités (`humanSupport: 'basic' | 'dedicated'`, `voiceInput`, `pdfCertified`, `autoPublish`, `maxProjects`, `maxJustificatifs/mois`).
-   - Hook `usePlan()` côté client + serverFn `getMyPlan` (avec `requireSupabaseAuth`).
+**Assets CDN (upload via lovable-assets)**
+- Logo officiel V2 (`Logo_AgriCapital_-V2.png`)
+- Poster plantation (`POSTER_AGRICAPITAL_Plantation.jpg`)
+- 3 flyers B5 (Verso, Recto promo -25%, Exclusif -35%)
+- Photo palmier (`fais_une_plantation_202604101808.png`)
+- Captures `agricapital.ci` et `app.agricapital.ci` (via fetch_website)
 
-2. **Limitation accompagnement humain**
-   - Page `/_authenticated/support` : free → formulaire FAQ + 1 ticket/mois (table `mp_support_tickets`), growth → chat dédié (placeholder + tickets illimités, badge "dédié").
-   - Composant `<PlanGate feature="dedicatedSupport">` qui montre un CTA upgrade pour le plan gratuit.
+**Page publique** `/projets/agricapital` (route non authentifiée)
+- Hero avec poster + logo + slogan « Investir la terre. Cultiver l'avenir. »
+- Section offres : PalmInvest / PalmInvest+ / TerraPalm / TerraPalm+ (tarifs des flyers)
+- Galerie flyers cliquables (lightbox)
+- Section « État des lieux 2026 » (extrait du PDF : valorisation, traction, pipeline)
+- Bloc partition financière (lecture seule des 125 opérations, solde = 0)
+- CTA : contact@agricapital.ci · 05 64 55 17 17 · agricapital.ci
+- SEO complet (head meta + og:image = poster)
 
-3. **Onboarding mobile**
-   - Composant `OnboardingSteps` (3 écrans simples + pictos + voix off-style) déclenché au 1ᵉʳ login (flag `localStorage` + colonne `onboarded_at` profil).
-   - Sur `/` mobile : `LoginCard` reste en 1ᵉʳ plan (déjà fait), ajout d'un mini-carousel "3 étapes pour commencer" sous le login, plus court.
+**Publication automatique « site mère »** : la page est servie publiquement à `/projets/agricapital` sur le domaine du projet — aucune action manuelle requise.
 
-4. **Charte visuelle — nettoyage complet**
-   - Remplacer `bg-orange-500`, `text-orange-600`, `bg-orange-100`, `border-orange-300` → tokens `bg-warning`, `text-warning`, `bg-warning/10`, `border-warning/30` (déjà mappé sur or).
-   - Vérifier `auth.tsx`, `score.tsx`, `dashboard.tsx`, `index.tsx`, sidebar `_authenticated/route.tsx` : tout doit utiliser `gradient-hero`, `primary`, `gold`, `sidebar-*` — pas de bleu/violet résiduel.
-   - Refaire `Logo.tsx` pour que sa version dans la sidebar sombre passe en blanc (`brightness-0 invert` déjà OK) et corriger le `+` doré qui disparaît en dark.
+## Lot 2 — Formulaire PME/Startup enrichi
 
-## Lot 2 — Justificatifs, saisie vocale, publication auto
+Migration table `projects` (ajouts) :
+- `logo_url`, `cover_url`, `pitch`, `produit_service`, `commercialisation`, `cible_marche`, `suivi_evaluation`
+- Bucket Storage `project-media` (public, RLS owner-write)
+- Table `mp_invoices` rattachée à `mp_financial_records` (upload PDF/image facture)
 
-5. **Justificatifs** (bucket `documents` existant)
-   - Migration : nouvelle colonne `mp_financial_records.receipt_path text`, policy storage : `documents/mp/<user_id>/...` lecture/écriture par owner.
-   - UI : upload dans `_authenticated/finances.tsx` (drag & drop, image/pdf, max 5 Mo), preview + lien signé via serverFn `getReceiptUrl`.
-   - Limite gratuit : 10 justificatifs/mois (lecture via `getMyPlan`).
+Composants formulaire :
+- Onglets : Identité · Pitch · Produit · Marché · Suivi · Documents
+- Upload logo + cover (drag & drop, prévisualisation)
+- Lien facture sur chaque ligne d'opération financière
 
-6. **Saisie vocale** (Lovable AI Gateway)
-   - Bouton micro sur le formulaire d'opération + description projet → MediaRecorder → POST `/api/voice-transcribe` (serverFn protégée) → Lovable AI Gateway `google/gemini-3-flash-preview` (audio→texte).
-   - Plan gratuit : limitée à 30 transcriptions/mois (compteur `mp_voice_usage`).
+## Lot 3 — Recalibrage score AgriCapital (cible 78–83 %)
 
-7. **Publication auto → table `projects`**
-   - Trigger Postgres : à chaque INSERT/UPDATE de `mp_scoring_results`, si `niveau = 'Finançable'` et `mp_projects.publish_when_eligible = true`, créer/maj une ligne dans `public.projects` (catalogue ivoireprojet.com) avec les champs essentiels (titre, secteur, montant, owner, statut `published`, source `miprojet`).
-   - Toggle UI dans `_authenticated/projets.tsx` : "Publier automatiquement au catalogue IvoireProjet quand finançable".
+Lecture du PDF État des Lieux pour extraire les preuves (immatriculation, plantation pilote, contrats, équipe, traction commerciale, brand book, site web actif, app métier).
 
-## Lot 3 — PDF certifié + sous-domaine
+Ajustement `src/lib/scoring.ts` :
+- Juridique 15 % → bonus immatriculation CCI + site `.ci` actif (≈ 95)
+- Financier 25 % → 125 opérations équilibrées + valorisation 72 M (≈ 75)
+- Technique 20 % → plantation pilote + app métier (≈ 85)
+- Marché 20 % → 4 offres produit + flyers + 2 sites live (≈ 80)
+- Impact 20 % → emplois ruraux + durabilité (≈ 80)
 
-8. **Rapports PDF certifiés**
-   - ServerFn `generateScoreReport(projectId)` (TanStack Start) : génère un PDF (pdf-lib) avec logo, score, axes, recommandations, signature numérique (hash SHA-256 du contenu + horodatage stocké dans `mp_certifications`).
-   - Page publique `/certificat/[shortId]` qui vérifie la signature et permet de re-télécharger.
-   - Plan gratuit : aperçu non signé / Plan growth+ : PDF certifié.
+→ Score consolidé attendu : **~81 %** (cohérent avec 75–83 %).
 
-9. **Sous-domaine `miprojet.ivoireprojet.com`**
-   - Je rédige un guide pas à pas (Lovable → Publish → Custom domain → DNS CNAME chez ton registrar) — la commande DNS n'est pas exécutable depuis ici, elle se fait côté registrar.
+## Technique
+- TanStack Start serverFn pour upload Storage signé
+- Route `/projets/$slug` publique (pas sous `_authenticated`)
+- Assets via `lovable-assets create` depuis `/mnt/user-uploads/`
+- `document--parse_document` sur les 2 PDF pour extraire chiffres réels
 
----
+## Ordre proposé
+1. Lot 1 (identité + page publique) — livrable visuel immédiat
+2. Lot 3 (recalibrage score) — court, basé sur lecture PDF
+3. Lot 2 (formulaire enrichi + factures) — plus lourd, migration + storage
 
-### Ce que je propose
-- **Démarrer maintenant le Lot 1** (qui inclut la correction obligatoire de la charte visuelle que tu réclames sur toutes les pages, l'onboarding mobile, et la séparation gratuit/croissance pour l'accompagnement humain).
-- Une fois validé visuellement, j'enchaîne Lot 2 puis Lot 3 dans la même session.
-
-Confirme « OK Lot 1 » (ou indique un ajustement) et je commence l'implémentation immédiatement.
+Confirmez l'ordre (ou dites « 1-2-3 » / « 1-3-2 ») et je lance.
