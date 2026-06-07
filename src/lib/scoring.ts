@@ -125,8 +125,8 @@ export function computeScore(project: ProjectInput, records: RecordInput[]): Sco
   else { faiblesses.push("Pas de comptabilité"); recommandations.push("Activer la comptabilité simplifiée"); }
   if (project.has_bank_account) forces.push("Compte bancaire actif");
   else { faiblesses.push("Pas de compte bancaire"); recommandations.push("Ouvrir un compte bancaire pour la traçabilité"); }
-  if (project.has_business_plan) forces.push("Business plan disponible");
-  else { faiblesses.push("Pas de business plan"); recommandations.push("Rédiger un business plan structuré"); }
+  if (project.has_business_plan) forces.push("Document de présentation stratégique disponible");
+  else { faiblesses.push("Pas de document de présentation stratégique"); recommandations.push("Préparer un document de présentation stratégique (vision, offre, modèle, équipe)"); }
   if (nbOperations >= 30) forces.push("Activité régulièrement enregistrée");
   else recommandations.push("Enregistrer vos opérations chaque jour pour bâtir l'historique (régularité = score)");
   if (project.logo_url && project.cover_url) forces.push("Identité visuelle complète");

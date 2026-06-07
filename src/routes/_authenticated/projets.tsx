@@ -22,7 +22,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { Plus, MapPin, Briefcase, Calendar } from "lucide-react";
+import { Plus, MapPin, Briefcase, Calendar, ExternalLink } from "lucide-react";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/_authenticated/projets")({
@@ -102,7 +102,9 @@ function ProjectsPage() {
         </div>
       ) : (
         <div className="grid min-w-0 grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 lg:gap-5">
-          {projectsQ.data!.map((p) => (
+          {projectsQ.data!.map((p) => {
+            const publicSlug = /agri.?capital/i.test(p.title ?? "") ? "agricapital" : null;
+            return (
             <Link
               key={p.id}
               to="/finances"
@@ -143,8 +145,20 @@ function ProjectsPage() {
                   </span>
                 )}
               </div>
+              {publicSlug && (
+                <a
+                  href={`/projets/${publicSlug}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  onClick={(e) => e.stopPropagation()}
+                  className="mt-4 inline-flex items-center gap-1.5 rounded-full bg-gold/15 px-3 py-1.5 text-xs font-semibold text-gold hover:bg-gold/25"
+                >
+                  Page publique <ExternalLink className="h-3 w-3" />
+                </a>
+              )}
             </Link>
-          ))}
+            );
+          })}
         </div>
       )}
     </div>
@@ -284,7 +298,7 @@ function ProjectForm({ userId, onDone }: { userId: string; onDone: () => void })
         {[
           ["has_accounting", "Comptabilité tenue"],
           ["has_bank_account", "Compte bancaire actif"],
-          ["has_business_plan", "Business plan disponible"],
+          ["has_business_plan", "Document de présentation stratégique disponible"],
         ].map(([key, label]) => (
           <label key={key} className="flex items-center gap-2 text-sm">
             <Checkbox

@@ -14,7 +14,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Progress } from "@/components/ui/progress";
-import { CheckCircle2, AlertTriangle, Lightbulb, Save, Trophy, FileText } from "lucide-react";
+import { CheckCircle2, AlertTriangle, Lightbulb, Save, Trophy, FileText, ExternalLink } from "lucide-react";
 import { toast } from "sonner";
 import { useServerFn } from "@tanstack/react-start";
 import { generateScoreReport } from "@/lib/certificates.functions";
@@ -62,6 +62,8 @@ function ScorePage() {
   const projects = projectsQ.data ?? [];
   const activeId = selectedId || projects[0]?.id || "";
   const activeProject = projects.find((p) => p.id === activeId);
+  const publicSlug =
+    activeProject && /agri.?capital/i.test(activeProject.title ?? "") ? "agricapital" : null;
 
   const recordsQ = useQuery({
     queryKey: ["records", activeId],
@@ -165,6 +167,26 @@ function ScorePage() {
 
       {score && (
         <>
+          {publicSlug && (
+            <a
+              href={`/projets/${publicSlug}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex flex-col gap-2 rounded-2xl border border-gold/40 bg-gradient-to-r from-gold/10 via-primary/5 to-transparent p-4 sm:flex-row sm:items-center sm:justify-between sm:p-5"
+            >
+              <div className="min-w-0">
+                <div className="text-xs font-semibold uppercase tracking-wider text-gold">
+                  Vitrine publique
+                </div>
+                <div className="mt-1 break-words text-sm font-medium">
+                  Page projet publiée : affiche, offres PalmInvest / TerraPalm, flyers, partition financière et état des lieux.
+                </div>
+              </div>
+              <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-primary px-4 py-2 text-xs font-bold text-primary-foreground">
+                Ouvrir <ExternalLink className="h-3.5 w-3.5" />
+              </span>
+            </a>
+          )}
           <div className="grid min-w-0 gap-4 lg:grid-cols-3 lg:gap-6">
             <div className="overflow-hidden rounded-2xl gradient-hero p-5 text-center text-white sm:rounded-3xl sm:p-8 lg:col-span-1">
               <div className="text-xs uppercase tracking-[0.16em] text-white/70">Score global</div>
