@@ -24,6 +24,9 @@ import {
 } from "@/components/ui/dialog";
 import { Plus, Trash2, ArrowUpRight, ArrowDownRight } from "lucide-react";
 import { toast } from "sonner";
+import { Upload, CheckCircle2, AlertTriangle } from "lucide-react";
+import * as XLSX from "xlsx";
+import { useRef } from "react";
 
 export const Route = createFileRoute("/_authenticated/finances")({
   head: () => ({ meta: [{ title: "Finances · MiProjet+" }] }),
@@ -35,6 +38,8 @@ function FinancesPage() {
   const qc = useQueryClient();
   const [open, setOpen] = useState(false);
   const [filterProject, setFilterProject] = useState<string>("all");
+  const [filterType, setFilterType] = useState<string>("all");
+  const [importOpen, setImportOpen] = useState(false);
 
   const projectsQ = useQuery({
     queryKey: ["my-projects", user.id],
@@ -46,9 +51,10 @@ function FinancesPage() {
   });
 
   const projects = projectsQ.data ?? [];
-  const records = (recordsQ.data ?? []).filter(
-    (r) => filterProject === "all" || r.project_id === filterProject,
-  );
+  const records = (recordsQ.data ?? [])
+    .filter((r) => filterProject === "all" || r.project_id === filterProject)
+    .filter((r) => filterType === "all" || r.record_type === filterType)
+    .sort((a, b) => (a.record_date < b.record_date ? -1 : 1)); // chronologique
 
   const entrees = records
     .filter((r) => recordFlow(r.record_type) === "in")
@@ -105,6 +111,41 @@ function FinancesPage() {
               ))}
             </SelectContent>
           </Select>
+          <Select value={filterType} onValueChange={setFilterType}>
+            <SelectTrigger className="w-full sm:w-48">
+              <SelectValue placeholder="Type" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Tous types</SelectItem>
+              <SelectItem value="apport_associe">Apports</SelectItem>
+              <SelectItem value="don">Dons</SelectItem>
+              <SelectItem value="achat">Achats</SelectItem>
+              <SelectItem value="depense">Dépenses</SelectItem>
+              <SelectItem value="vente">Ventes</SelectItem>
+              <SelectItem value="pret">Prêts</SelectItem>
+            </SelectContent>
+          </Select>
+          <Dialog open={importOpen} onOpenChange={setImportOpen}>
+            <DialogTrigger asChild>
+              <Button variant="outline" className="w-full sm:w-auto">
+                <Upload className="w-4 h-4 mr-1.5" /> Importer XLSX
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="max-w-lg">
+              <DialogHeader>
+                <DialogTitle>Importer un journal des opérations (XLSX)</DialogTitle>
+              </DialogHeader>
+              <XlsxImporter
+                userId={user.id}
+                projects={projects}
+                defaultProject={filterProject !== "all" ? filterProject : projects[0]?.id}
+                onDone={() => {
+                  setImportOpen(false);
+                  qc.invalidateQueries({ queryKey: ["all-records"] });
+                }}
+              />
+            </DialogContent>
+          </Dialog>
           <Dialog open={open} onOpenChange={setOpen}>
             <DialogTrigger asChild>
               <Button className="w-full bg-primary hover:bg-primary/90 sm:w-auto">
@@ -387,5 +428,222 @@ function RecordForm({
         {m.isPending ? "Enregistrement…" : "Enregistrer"}
       </Button>
     </form>
+  );
+}
+
+// ----- XLSX Importer (journal des opérations) -----
+const TYPE_MAP_FR: Record<string, string> = {
+  "apport gérant": "apport_associe",
+  "apport gerant": "apport_associe",
+  "apport d'associé": "apport_associe",
+  "apport d'associe": "apport_associe",
+  "apport associé": "apport_associe",
+  "apport": "apport_associe",
+  "don": "don",
+  "don / subvention": "don",
+  "subvention": "don",
+  "achat / approv.": "achat",
+  "achat": "achat",
+  "approvisionnement": "achat",
+  "dépense opérationnelle": "depense",
+  "depense operationnelle": "depense",
+  "dépense": "depense",
+  "depense": "depense",
+  "vente": "vente",
+  "encaissement": "encaissement",
+  "prêt": "pret",
+  "pret": "pret",
+};
+
+function stripCodes(s: string): string {
+  return (s || "").replace(/\s*\[[A-Z]{1,3}\d{1,3}\]\s*/g, " ").replace(/\s+/g, " ").trim();
+}
+
+function parseSheet(buf: ArrayBuffer): Array<{
+  date: string; type: string; category: string | null; description: string | null; amount: number;
+}> {
+  const wb = XLSX.read(buf, { type: "array", cellDates: true });
+  const ws = wb.Sheets[wb.SheetNames[0]];
+  const raw = XLSX.utils.sheet_to_json<any>(ws, { defval: null, header: 1 });
+  // detect header row
+  let headerIdx = raw.findIndex((row: any[]) =>
+    row?.some?.((c) => typeof c === "string" && /Date/i.test(c)) &&
+    row?.some?.((c) => typeof c === "string" && /Type/i.test(c)),
+  );
+  if (headerIdx < 0) headerIdx = 0;
+  const headers = (raw[headerIdx] as any[]).map((h) => (h ?? "").toString().toLowerCase());
+  const idx = {
+    date: headers.findIndex((h) => /date/.test(h)),
+    type: headers.findIndex((h) => /type/.test(h)),
+    desc: headers.findIndex((h) => /description|libell/.test(h)),
+    cat: headers.findIndex((h) => /source|cat/.test(h)),
+    debit: headers.findIndex((h) => /d[ée]bit/.test(h)),
+    credit: headers.findIndex((h) => /cr[ée]dit/.test(h)),
+    amount: headers.findIndex((h) => /montant|amount/.test(h)),
+  };
+  const rows: any[] = [];
+  for (let i = headerIdx + 1; i < raw.length; i++) {
+    const r = raw[i] as any[];
+    if (!r) continue;
+    const d = r[idx.date];
+    if (!d) continue;
+    let dateStr: string;
+    if (d instanceof Date) dateStr = d.toISOString().slice(0, 10);
+    else dateStr = new Date(d).toISOString().slice(0, 10);
+    if (Number.isNaN(new Date(dateStr).getTime())) continue;
+    const typRaw = (r[idx.type] ?? "").toString().trim().toLowerCase();
+    const type = TYPE_MAP_FR[typRaw] ?? "depense";
+    const debit = idx.debit >= 0 ? Number(r[idx.debit]) || 0 : 0;
+    const credit = idx.credit >= 0 ? Number(r[idx.credit]) || 0 : 0;
+    const amount = idx.amount >= 0 ? Number(r[idx.amount]) || 0 : credit || debit;
+    if (!amount) continue;
+    rows.push({
+      date: dateStr,
+      type,
+      category: stripCodes(r[idx.cat] ?? "") || null,
+      description: stripCodes(r[idx.desc] ?? "") || null,
+      amount,
+    });
+  }
+  rows.sort((a, b) => (a.date < b.date ? -1 : 1));
+  return rows;
+}
+
+function XlsxImporter({
+  userId,
+  projects,
+  defaultProject,
+  onDone,
+}: {
+  userId: string;
+  projects: any[];
+  defaultProject?: string;
+  onDone: () => void;
+}) {
+  const [projectId, setProjectId] = useState(defaultProject ?? "");
+  const [replaceMode, setReplaceMode] = useState(true);
+  const [parsed, setParsed] = useState<any[] | null>(null);
+  const [filename, setFilename] = useState("");
+  const fileRef = useRef<HTMLInputElement>(null);
+
+  const totals = parsed
+    ? parsed.reduce(
+        (acc, r) => {
+          const inFlow = ["apport_associe", "don", "vente", "encaissement", "pret", "investissement"].includes(r.type);
+          if (inFlow) acc.entrees += r.amount;
+          else acc.sorties += r.amount;
+          return acc;
+        },
+        { entrees: 0, sorties: 0 },
+      )
+    : { entrees: 0, sorties: 0 };
+  const solde = totals.entrees - totals.sorties;
+
+  const importM = useMutation({
+    mutationFn: async () => {
+      if (!parsed || !projectId) throw new Error("Fichier ou projet manquant");
+      if (replaceMode) {
+        const { error: delErr } = await supabase
+          .from("mp_financial_records")
+          .delete()
+          .eq("project_id", projectId);
+        if (delErr) throw delErr;
+      }
+      // chunked insert
+      const chunkSize = 50;
+      for (let i = 0; i < parsed.length; i += chunkSize) {
+        const slice = parsed.slice(i, i + chunkSize).map((r) => ({
+          user_id: userId,
+          project_id: projectId,
+          record_type: r.type,
+          category: r.category,
+          description: r.description,
+          amount: r.amount,
+          currency: "XOF",
+          record_date: r.date,
+        }));
+        const { error } = await supabase.from("mp_financial_records").insert(slice);
+        if (error) throw error;
+      }
+    },
+    onSuccess: () => {
+      toast.success(`${parsed?.length ?? 0} opérations importées · Solde ${formatXOF(solde)}`);
+      onDone();
+    },
+    onError: (e: any) => toast.error(e.message),
+  });
+
+  return (
+    <div className="space-y-4">
+      <div>
+        <Label>Projet cible *</Label>
+        <Select value={projectId} onValueChange={setProjectId}>
+          <SelectTrigger className="mt-1.5">
+            <SelectValue placeholder="Choisir un projet…" />
+          </SelectTrigger>
+          <SelectContent>
+            {projects.map((p) => (
+              <SelectItem key={p.id} value={p.id}>{p.title}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+      <div>
+        <Label>Fichier XLSX</Label>
+        <input
+          ref={fileRef}
+          type="file"
+          accept=".xlsx,.xls"
+          className="mt-1.5 block w-full text-sm file:mr-3 file:rounded file:border-0 file:bg-primary file:px-3 file:py-2 file:text-primary-foreground"
+          onChange={async (e) => {
+            const f = e.target.files?.[0];
+            if (!f) return;
+            setFilename(f.name);
+            try {
+              const buf = await f.arrayBuffer();
+              const rows = parseSheet(buf);
+              setParsed(rows);
+              if (!rows.length) toast.error("Aucune opération détectée dans le fichier");
+            } catch (err: any) {
+              toast.error("Erreur de lecture : " + err.message);
+            }
+          }}
+        />
+        {filename && <p className="mt-1 text-xs text-muted-foreground">📄 {filename}</p>}
+      </div>
+      <label className="flex items-center gap-2 text-sm">
+        <input
+          type="checkbox"
+          checked={replaceMode}
+          onChange={(e) => setReplaceMode(e.target.checked)}
+        />
+        Remplacer toutes les opérations existantes du projet (sinon ajouter)
+      </label>
+      {parsed && (
+        <div className="rounded-lg border bg-muted/30 p-3 space-y-2 text-sm">
+          <div className="flex justify-between"><span>Opérations détectées</span><strong>{parsed.length}</strong></div>
+          <div className="flex justify-between text-success"><span>Entrées</span><strong>{formatXOF(totals.entrees)}</strong></div>
+          <div className="flex justify-between text-destructive"><span>Sorties</span><strong>{formatXOF(totals.sorties)}</strong></div>
+          <div className={`flex justify-between border-t pt-2 ${solde === 0 ? "text-success" : "text-warning"}`}>
+            <span className="flex items-center gap-1">
+              {solde === 0 ? <CheckCircle2 className="h-4 w-4" /> : <AlertTriangle className="h-4 w-4" />}
+              Solde de contrôle
+            </span>
+            <strong>{formatXOF(solde)}</strong>
+          </div>
+          {solde !== 0 && (
+            <p className="text-xs text-warning">⚠ Entrées ≠ Sorties — vérifiez votre journal avant d'importer.</p>
+          )}
+        </div>
+      )}
+      <Button
+        type="button"
+        disabled={!parsed || !projectId || importM.isPending}
+        onClick={() => importM.mutate()}
+        className="w-full bg-primary hover:bg-primary/90"
+      >
+        {importM.isPending ? "Import en cours…" : `Importer ${parsed?.length ?? 0} opérations`}
+      </Button>
+    </div>
   );
 }

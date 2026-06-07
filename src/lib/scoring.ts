@@ -7,6 +7,14 @@ interface ProjectInput {
   annual_revenue?: number | null;
   employees_count?: number | null;
   creation_date?: string | null;
+  logo_url?: string | null;
+  cover_url?: string | null;
+  short_pitch?: string | null;
+  product_description?: string | null;
+  commercialization?: string | null;
+  target_customers?: string | null;
+  monitoring_evaluation?: string | null;
+  project_type?: string | null;
 }
 
 interface RecordInput {
@@ -34,44 +42,63 @@ export function computeScore(project: ProjectInput, records: RecordInput[]): Sco
   const sorties = records.filter((r) => recordFlow(r.record_type) === "out").reduce((s, r) => s + Number(r.amount), 0);
   const benefice = entrees - sorties;
   const nbOperations = records.length;
+  const monthsActive = project.creation_date
+    ? Math.max(0, (Date.now() - new Date(project.creation_date).getTime()) / (1000 * 60 * 60 * 24 * 30))
+    : 0;
 
-  // Juridique : statut, durée d'activité
-  let juridique = 30;
-  if (project.creation_date) {
-    const months = (Date.now() - new Date(project.creation_date).getTime()) / (1000 * 60 * 60 * 24 * 30);
-    juridique += Math.min(40, months * 2);
-  }
-  if (project.has_bank_account) juridique += 30;
+  // Juridique (15%) — preuves légales et bancarisation
+  let juridique = 10;
+  if (project.has_bank_account) juridique += 20;
+  if (project.creation_date) juridique += Math.min(20, monthsActive * 1.2);
   juridique = Math.min(100, juridique);
 
-  // Financier : régularité de saisie + bénéfice + comptabilité
-  let financier = 20;
-  if (project.has_accounting) financier += 25;
-  financier += Math.min(35, nbOperations * 2);
-  if (benefice > 0) financier += 20;
-  financier = Math.min(100, financier);
+  // Financier (25%) — progression LENTE : ~5 % par mois d'activité régulière,
+  // plafonné. La régularité (≥ 30 lignes étalées + bénéfice + comptabilité)
+  // est nécessaire pour passer 60.
+  let financier = 5;
+  // sub-score : régularité d'enregistrement (max 25)
+  financier += Math.min(25, nbOperations * 0.4);
+  // sub-score : maturité temporelle (max 20) — 1 pt par mois d'activité
+  financier += Math.min(20, monthsActive * 1);
+  // sub-score : preuves de gestion (max 20)
+  if (project.has_accounting) financier += 12;
+  if (project.has_bank_account) financier += 8;
+  // sub-score : solidité (max 20) — bénéfice positif + volume d'entrées
+  if (benefice > 0) financier += 10;
+  if (entrees > 500_000) financier += 5;
+  if (entrees > 5_000_000) financier += 5;
+  financier = Math.min(100, Math.round(financier));
 
-  // Technique : business plan, équipe
-  let technique = 30;
-  if (project.has_business_plan) technique += 35;
-  if ((project.employees_count ?? 0) > 0) technique += 20;
-  if (nbOperations > 10) technique += 15;
+  // Technique (20%) — preuves (business plan, équipe, présentation produit)
+  let technique = 10;
+  if (project.has_business_plan) technique += 25;
+  if ((project.employees_count ?? 0) > 0) technique += Math.min(15, (project.employees_count ?? 0) * 3);
+  if (project.product_description && project.product_description.length > 80) technique += 15;
+  if (project.monitoring_evaluation && project.monitoring_evaluation.length > 60) technique += 10;
+  if (nbOperations > 20) technique += 10;
   technique = Math.min(100, technique);
 
-  // Marché : chiffre d'affaires
-  let marche = 25;
-  if (entrees > 0) marche += 25;
-  if (entrees > 500_000) marche += 25;
-  if (entrees > 5_000_000) marche += 25;
+  // Marché (20%) — pitch, ciblage, commercialisation, chiffre d'affaires
+  let marche = 10;
+  if (project.short_pitch && project.short_pitch.length > 60) marche += 12;
+  if (project.target_customers && project.target_customers.length > 40) marche += 12;
+  if (project.commercialization && project.commercialization.length > 60) marche += 12;
+  if (entrees > 0) marche += 8;
+  if (entrees > 500_000) marche += 10;
+  if (entrees > 5_000_000) marche += 10;
   marche = Math.min(100, marche);
 
-  // Impact : emplois, durée
-  let impact = 40 + Math.min(40, (project.employees_count ?? 0) * 8);
-  if (nbOperations > 30) impact += 20;
+  // Impact (20%) — emplois, ancienneté, visuels (logo + cover = présentation)
+  let impact = 10;
+  impact += Math.min(30, (project.employees_count ?? 0) * 5);
+  impact += Math.min(20, monthsActive * 1.2);
+  if (project.logo_url) impact += 8;
+  if (project.cover_url) impact += 8;
+  if (nbOperations > 50) impact += 10;
   impact = Math.min(100, impact);
 
   const score_global = Math.round(
-    juridique * 0.15 + financier * 0.35 + technique * 0.2 + marche * 0.2 + impact * 0.1,
+    juridique * 0.15 + financier * 0.25 + technique * 0.2 + marche * 0.2 + impact * 0.2,
   );
 
   let niveau: ScoreResult["niveau"];
@@ -90,8 +117,12 @@ export function computeScore(project: ProjectInput, records: RecordInput[]): Sco
   else { faiblesses.push("Pas de compte bancaire"); recommandations.push("Ouvrir un compte bancaire pour la traçabilité"); }
   if (project.has_business_plan) forces.push("Business plan disponible");
   else { faiblesses.push("Pas de business plan"); recommandations.push("Rédiger un business plan structuré"); }
-  if (nbOperations >= 10) forces.push("Activité régulièrement enregistrée");
-  else recommandations.push("Enregistrer vos opérations chaque jour pour bâtir l'historique");
+  if (nbOperations >= 30) forces.push("Activité régulièrement enregistrée");
+  else recommandations.push("Enregistrer vos opérations chaque jour pour bâtir l'historique (régularité = score)");
+  if (project.logo_url && project.cover_url) forces.push("Identité visuelle complète");
+  else recommandations.push("Ajouter logo + image de couverture pour valoriser le projet");
+  if (project.short_pitch) forces.push("Pitch renseigné");
+  else recommandations.push("Rédiger un pitch court et convaincant");
   if (benefice > 0) forces.push("Activité bénéficiaire");
   else if (sorties > 0) faiblesses.push("Solde négatif sur la période");
 
