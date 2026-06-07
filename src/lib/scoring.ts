@@ -50,7 +50,6 @@ export function computeScore(project: ProjectInput, records: RecordInput[]): Sco
   let juridique = 10;
   if (project.has_bank_account) juridique += 20;
   if (project.creation_date) juridique += Math.min(20, monthsActive * 1.2);
-  if (project.legal_status_present) juridique += 10; // unused but reserved
   juridique = Math.min(100, juridique);
 
   // Financier (25%) — progression LENTE : ~5 % par mois d'activité régulière,
