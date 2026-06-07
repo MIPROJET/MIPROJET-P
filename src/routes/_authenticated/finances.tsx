@@ -24,6 +24,9 @@ import {
 } from "@/components/ui/dialog";
 import { Plus, Trash2, ArrowUpRight, ArrowDownRight } from "lucide-react";
 import { toast } from "sonner";
+import { Upload, CheckCircle2, AlertTriangle } from "lucide-react";
+import * as XLSX from "xlsx";
+import { useRef } from "react";
 
 export const Route = createFileRoute("/_authenticated/finances")({
   head: () => ({ meta: [{ title: "Finances · MiProjet+" }] }),
@@ -35,6 +38,8 @@ function FinancesPage() {
   const qc = useQueryClient();
   const [open, setOpen] = useState(false);
   const [filterProject, setFilterProject] = useState<string>("all");
+  const [filterType, setFilterType] = useState<string>("all");
+  const [importOpen, setImportOpen] = useState(false);
 
   const projectsQ = useQuery({
     queryKey: ["my-projects", user.id],
@@ -46,9 +51,10 @@ function FinancesPage() {
   });
 
   const projects = projectsQ.data ?? [];
-  const records = (recordsQ.data ?? []).filter(
-    (r) => filterProject === "all" || r.project_id === filterProject,
-  );
+  const records = (recordsQ.data ?? [])
+    .filter((r) => filterProject === "all" || r.project_id === filterProject)
+    .filter((r) => filterType === "all" || r.record_type === filterType)
+    .sort((a, b) => (a.record_date < b.record_date ? -1 : 1)); // chronologique
 
   const entrees = records
     .filter((r) => recordFlow(r.record_type) === "in")
@@ -105,6 +111,41 @@ function FinancesPage() {
               ))}
             </SelectContent>
           </Select>
+          <Select value={filterType} onValueChange={setFilterType}>
+            <SelectTrigger className="w-full sm:w-48">
+              <SelectValue placeholder="Type" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Tous types</SelectItem>
+              <SelectItem value="apport_associe">Apports</SelectItem>
+              <SelectItem value="don">Dons</SelectItem>
+              <SelectItem value="achat">Achats</SelectItem>
+              <SelectItem value="depense">Dépenses</SelectItem>
+              <SelectItem value="vente">Ventes</SelectItem>
+              <SelectItem value="pret">Prêts</SelectItem>
+            </SelectContent>
+          </Select>
+          <Dialog open={importOpen} onOpenChange={setImportOpen}>
+            <DialogTrigger asChild>
+              <Button variant="outline" className="w-full sm:w-auto">
+                <Upload className="w-4 h-4 mr-1.5" /> Importer XLSX
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="max-w-lg">
+              <DialogHeader>
+                <DialogTitle>Importer un journal des opérations (XLSX)</DialogTitle>
+              </DialogHeader>
+              <XlsxImporter
+                userId={user.id}
+                projects={projects}
+                defaultProject={filterProject !== "all" ? filterProject : projects[0]?.id}
+                onDone={() => {
+                  setImportOpen(false);
+                  qc.invalidateQueries({ queryKey: ["all-records"] });
+                }}
+              />
+            </DialogContent>
+          </Dialog>
           <Dialog open={open} onOpenChange={setOpen}>
             <DialogTrigger asChild>
               <Button className="w-full bg-primary hover:bg-primary/90 sm:w-auto">
