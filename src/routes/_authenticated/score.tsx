@@ -184,10 +184,10 @@ function ScorePage() {
               <h2 className="text-lg font-semibold mb-5">Décomposition par axe</h2>
               <div className="space-y-4">
                 <ScoreBar label="Juridique" value={score.score_juridique} weight="15%" />
-                <ScoreBar label="Financier" value={score.score_financier} weight="35%" />
+                <ScoreBar label="Financier" value={score.score_financier} weight="25%" />
                 <ScoreBar label="Technique" value={score.score_technique} weight="20%" />
                 <ScoreBar label="Marché" value={score.score_marche} weight="20%" />
-                <ScoreBar label="Impact" value={score.score_impact} weight="10%" />
+                <ScoreBar label="Impact" value={score.score_impact} weight="20%" />
               </div>
               <div className="mt-6 grid grid-cols-1 gap-3 border-t pt-6 text-center sm:grid-cols-3 sm:gap-4">
                 <div className="min-w-0">
