@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as AuthRouteImport } from './routes/auth'
 import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/route'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as ProjetsSlugRouteImport } from './routes/projets.$slug'
 import { Route as CertificatShortIdRouteImport } from './routes/certificat.$shortId'
 import { Route as AuthenticatedSupportRouteImport } from './routes/_authenticated/support'
 import { Route as AuthenticatedScoreRouteImport } from './routes/_authenticated/score'
@@ -31,6 +32,11 @@ const AuthenticatedRouteRoute = AuthenticatedRouteRouteImport.update({
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ProjetsSlugRoute = ProjetsSlugRouteImport.update({
+  id: '/projets/$slug',
+  path: '/projets/$slug',
   getParentRoute: () => rootRouteImport,
 } as any)
 const CertificatShortIdRoute = CertificatShortIdRouteImport.update({
@@ -73,6 +79,7 @@ export interface FileRoutesByFullPath {
   '/score': typeof AuthenticatedScoreRoute
   '/support': typeof AuthenticatedSupportRoute
   '/certificat/$shortId': typeof CertificatShortIdRoute
+  '/projets/$slug': typeof ProjetsSlugRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -83,6 +90,7 @@ export interface FileRoutesByTo {
   '/score': typeof AuthenticatedScoreRoute
   '/support': typeof AuthenticatedSupportRoute
   '/certificat/$shortId': typeof CertificatShortIdRoute
+  '/projets/$slug': typeof ProjetsSlugRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -95,6 +103,7 @@ export interface FileRoutesById {
   '/_authenticated/score': typeof AuthenticatedScoreRoute
   '/_authenticated/support': typeof AuthenticatedSupportRoute
   '/certificat/$shortId': typeof CertificatShortIdRoute
+  '/projets/$slug': typeof ProjetsSlugRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -107,6 +116,7 @@ export interface FileRouteTypes {
     | '/score'
     | '/support'
     | '/certificat/$shortId'
+    | '/projets/$slug'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -117,6 +127,7 @@ export interface FileRouteTypes {
     | '/score'
     | '/support'
     | '/certificat/$shortId'
+    | '/projets/$slug'
   id:
     | '__root__'
     | '/'
@@ -128,6 +139,7 @@ export interface FileRouteTypes {
     | '/_authenticated/score'
     | '/_authenticated/support'
     | '/certificat/$shortId'
+    | '/projets/$slug'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -135,6 +147,7 @@ export interface RootRouteChildren {
   AuthenticatedRouteRoute: typeof AuthenticatedRouteRouteWithChildren
   AuthRoute: typeof AuthRoute
   CertificatShortIdRoute: typeof CertificatShortIdRoute
+  ProjetsSlugRoute: typeof ProjetsSlugRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -158,6 +171,13 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/projets/$slug': {
+      id: '/projets/$slug'
+      path: '/projets/$slug'
+      fullPath: '/projets/$slug'
+      preLoaderRoute: typeof ProjetsSlugRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/certificat/$shortId': {
@@ -229,6 +249,7 @@ const rootRouteChildren: RootRouteChildren = {
   AuthenticatedRouteRoute: AuthenticatedRouteRouteWithChildren,
   AuthRoute: AuthRoute,
   CertificatShortIdRoute: CertificatShortIdRoute,
+  ProjetsSlugRoute: ProjetsSlugRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
