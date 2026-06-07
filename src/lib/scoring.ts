@@ -15,6 +15,10 @@ interface ProjectInput {
   target_customers?: string | null;
   monitoring_evaluation?: string | null;
   project_type?: string | null;
+  legal_status?: string | null;
+  sector?: string | null;
+  city?: string | null;
+  country?: string | null;
 }
 
 interface RecordInput {
@@ -46,10 +50,14 @@ export function computeScore(project: ProjectInput, records: RecordInput[]): Sco
     ? Math.max(0, (Date.now() - new Date(project.creation_date).getTime()) / (1000 * 60 * 60 * 24 * 30))
     : 0;
 
-  // Juridique (15%) — preuves légales et bancarisation
+  // Juridique (15%) — formalisation, preuves légales et bancarisation
   let juridique = 10;
-  if (project.has_bank_account) juridique += 20;
-  if (project.creation_date) juridique += Math.min(20, monthsActive * 1.2);
+  if (project.has_bank_account) juridique += 18;
+  if (project.has_business_plan) juridique += 10;
+  if (project.legal_status) juridique += 12; // SARL, SA, EI…
+  if (project.sector) juridique += 6;
+  if (project.city && project.country) juridique += 8; // siège renseigné
+  if (project.creation_date) juridique += Math.min(25, monthsActive * 0.6);
   juridique = Math.min(100, juridique);
 
   // Financier (25%) — progression LENTE : ~5 % par mois d'activité régulière,
@@ -63,10 +71,12 @@ export function computeScore(project: ProjectInput, records: RecordInput[]): Sco
   // sub-score : preuves de gestion (max 20)
   if (project.has_accounting) financier += 12;
   if (project.has_bank_account) financier += 8;
-  // sub-score : solidité (max 20) — bénéfice positif + volume d'entrées
+  // sub-score : solidité (max 25) — bénéfice positif OU équilibre + volume d'entrées
   if (benefice > 0) financier += 10;
+  else if (entrees > 0 && Math.abs(benefice) <= entrees * 0.05) financier += 8; // équilibré = bon signal
   if (entrees > 500_000) financier += 5;
   if (entrees > 5_000_000) financier += 5;
+  if (entrees > 10_000_000) financier += 5;
   financier = Math.min(100, Math.round(financier));
 
   // Technique (20%) — preuves (business plan, équipe, présentation produit)
